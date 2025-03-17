@@ -1,3 +1,12 @@
+// Write a function that:
+// - Has 3 int paramaters.
+// - If all numbers are equal: return the sum.
+// - If 2 numbers are equal: return the non equal number.
+// - If none are equal: return 5.
+// - Constraint 1 --> No traditional control flow (if / while / case ...)
+// - Constraint 2 --> No equality (a == b)
+
+
 #include <stdio.h>
 #include <stdint.h>
 
@@ -56,8 +65,8 @@ int branchlessFunction(int a, int b, int c) {
 }
 
 
-// Implementation using comparators but no branching (solution during interview)
-int compareFunction(int a, int b, int c) {
+// Implementation using equality checks but no branching (solution during interview)
+int equalityFunction(int a, int b, int c) {
     // If all integers are equal, return their sum
     int allEqual = (a == b && b == c) * (a + b + c);
     
@@ -107,13 +116,13 @@ int main() {
         int b = testCases[i][1];
         int c = testCases[i][2];
         int trad = tradFunction(a, b, c);
-        int comp = compareFunction(a, b, c);
+        int equal = equalityFunction(a, b, c);
         int branch = branchlessFunction(a, b, c);
         
-        printf("Case (%d,%d,%d): Traditional=%d, Comparator=%d, Branchless=%d", 
-               a, b, c, trad, comp, branch);
+        printf("Case (%d,%d,%d): Traditional=%d, Equality=%d, Branchless=%d", 
+               a, b, c, trad, equal, branch);
         
-        if (trad != comp || trad != branch) {
+        if (trad != equal || trad != branch) {
             printf("ERROR: Results don't match!\n");
         }
         else {
