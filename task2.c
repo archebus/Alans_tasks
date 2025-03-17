@@ -326,7 +326,7 @@ void burds(const char *FILE_PATH, int n, bool isCombination, bool withReplacemen
     printf("\nDone! <:)}}}><\n");
 }
 
-// Example usage in main function
+// Main, with arg parsing and simple docu for how to use compiled file.
 int main(int argc, char *argv[])
 {
     if (argc < 3)
