@@ -19,20 +19,20 @@ V0.4     | Added simple testing and output and print memory function.
 #include <stdio.h> 
 #include <string.h> 
 
-typedef struct archMetaData {
+typedef struct joshMetaData {
     size_t size;
     bool free;
-    struct archMetaData *next; // Pointer to next block of memory.
-} archMetaData;
+    struct joshMetaData *next; // Pointer to next block of memory.
+} joshMetaData;
 
-static archMetaData *head = NULL; // Head of linked list of mem blocks.
+static joshMetaData *head = NULL; // Head of linked list of mem blocks.
 
 
 void *joshGive(size_t size) { 
 
     // Used to traverse available memory blocksAssignments for 
-    archMetaData *current = head;
-    archMetaData *previous = NULL;
+    joshMetaData *current = head;
+    joshMetaData *previous = NULL;
 
     while (current) {
         if (current->free && current->size >= size) {
@@ -44,7 +44,7 @@ void *joshGive(size_t size) {
     }
     
     // If return was not hit above, need to request more memory from the OS -> move the program break up for new metadata + userdata.
-    archMetaData *memBlock = sbrk(sizeof(archMetaData) + size); // Assign enough space for metadata AND for user-data.
+    joshMetaData *memBlock = sbrk(sizeof(joshMetaData) + size); // Assign enough space for metadata AND for user-data.
     
     // Init props
     memBlock->size = size;
@@ -58,15 +58,15 @@ void *joshGive(size_t size) {
         previous->next = memBlock;
     }
 
-    // return (void*)((char*)memBlock + sizeof(archMetaData)); 
+    // return (void*)((char*)memBlock + sizeof(joshMetaData)); 
     return (void*)(memBlock + 1); // Return void pointer to user area that is just in front of the metadata area.
 
 }
 
 void joshTake(void *memPointer) {
     
-    // Using pointer arithmetic to go back one archMetaData length.
-    archMetaData *memBlock = ((archMetaData*)memPointer) - 1;
+    // Using pointer arithmetic to go back one joshMetaData length.
+    joshMetaData *memBlock = ((joshMetaData*)memPointer) - 1;
     
     // Mark as free
     memBlock->free = true;
@@ -76,7 +76,7 @@ void joshTake(void *memPointer) {
 }
 
 void printMemoryMap() {
-    archMetaData *current = head;
+    joshMetaData *current = head;
     int i = 0;
     
     printf("\n--- MEMORY MAP ---\n");
