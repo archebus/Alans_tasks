@@ -3,6 +3,29 @@
 // - Read through man pages of brk and sbrk
 // LOL --> "Avoid  using brk() and sbrk(): the malloc(3) memory allocation package is the portable and comfortable way of allocating memory."
 
+/**
+Reading through how memory is actually allocation I can see the below structure when a program is initially loaded into memory:
+
+Lower addresses
++----------------+
+| Text (code)    |
++----------------+
+| Data           |
++----------------+
+| BSS            |
++----------------+
+| Heap           | <- Initially small or empty
+|                |
++----------------+ <- Program break (brk point) <---- this is what is moved when calling sbrk.
+| Unused memory  |
+|                |
++----------------+
+| Stack          | <- Grows downward from high addresses
++----------------+
+Higher addresses
+
+ */
+
 #include <unistd.h>
 
 void *archGive(size_t size) {
