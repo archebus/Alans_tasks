@@ -4,47 +4,53 @@
 // LOL --> "Avoid  using brk() and sbrk(): the malloc(3) memory allocation package is the portable and comfortable way of allocating memory."
 
 /**
-Reading through how memory is actually allocation I can see the below structure when a program is initially loaded into memory:
 
-Lower addresses
-+----------------+
-| Text (code)    |
-+----------------+
-| Data           |
-+----------------+
-| BSS            |
-+----------------+
-| Heap           | <- Initially small or empty
-|                |
-+----------------+ <- Program break (brk point) <---- this is what is moved when calling sbrk.
-| Unused memory  |
-|                |
-+----------------+
-| Stack          | <- Grows downward from high addresses
-+----------------+
-Higher addresses
+HISTORY
+V1.0 | simple allocation, returned pointer with sbrk. No idea how to free the memory.
+V2.0 | Implemented metadata, allowing program to track allocation ... but still not sure how to return memory to OS.
+V2.1 | Read about pointer arithmetic 
 
  */
 
 #include <unistd.h>
+#include <stdbool.h>
 
-void *archGive(size_t size) {
+typedef struct archMetaData {
+    size_t size;
+    bool free;
+} archMetaData;
 
-    void *memPointer = sbrk(size);
 
-    return memPointer;
+
+void *joshGive(size_t size) { 
+
+    archMetaData *memBlock = sbrk(sizeof(archMetaData) + size); // Assign enough space for metadata AND for user-data.
+
+    memBlock->size = size;
+    memBlock->free = false;
+
+    // return (void*)((char*)memBlock + sizeof(archMetaData)); 
+    return (void*)(memBlock + 1); // Return void pointer to user area that is just in front of the metadata area.
 
 }
 
-void archTakeAway(void *ptr) {
+void joshTake(void *memPointer) {
 
-    // How do I free ....>>!>!>!>!>
-    (void)ptr;
+    if (memPointer == NULL) {
+        return; // Nothing to free
+    }
+    
+    // Using pointer arithmetic to go back one archMetaData structure
+    archMetaData *memBlock = ((archMetaData*)memPointer) - 1;
+    
+    // Mark as free
+    memBlock->free = true;
+
 }
 
 int main() {
     // Allocate space for 5 integers
-    int *numbers = (int*)archGive(5 * sizeof(int));
+    int *numbers = (int*)joshGive(5 * sizeof(int));
     
     // Use the allocated memory
     for (int i = 0; i < 5; i++) {
