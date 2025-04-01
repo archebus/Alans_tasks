@@ -1,367 +1,403 @@
-// Write a function that:
-// - Accepts a path to a list of bird names.
-// - Has an argument for length of sets (--n)
-// - Flag for combination vs permutation output
-// - Flag for replacement allowed, or not (--with, --without)
-// - Constraint 1 --> No dynamic data structures.
+// The Plan:
+// - Figure out how many combinations to generate using maths (will need to research this...)
+// - For each iteration number, convert it to a specific set of indices for streaming
+// - Then for each index, use fseek to jump to the correct file position
+// - Read and output the bird names directly from the file, meaning we don't need memory
+// - Computational overhead ... instead of memory ovehead.
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#include <stdint.h>
 
-#define MAX_BIRDS 100
-#define MAX_NAME_LENGTH 50
-#define MAX_N 10
 
-// Helper function for combination with replacement
-void generate_combination_with_replacement(char birdNames[][MAX_NAME_LENGTH], int numBirds, int n, int indices[])
+int count_birds (FILE *file)
 {
-    printf("Generating combinations with replacement (n=%d):\n", n);
+	if (!file) return 0;
+	
+	long start_pos = ftell(file);
 
-    bool done = false;
+	fseek(file, 0, SEEK_SET);
 
-    // Initialize first combination
-    for (int i = 0; i < n; i++)
-    {
-        indices[i] = 0;
-    }
+	int count = 0;
+	int c;
+	bool new_line = true;
 
-    while (!done)
-    {
-        // Print current combination
-        for (int i = 0; i < n; i++)
-        {
-            printf("%s", birdNames[indices[i]]);
-            if (i < n - 1)
-                printf(",");
-        }
-        printf("\n");
+	while ((c = fgetc(file)) != EOF)
+	{
+		if (c == '\n')
+		{
+			count++;
+			new_line = true;
+		}
+		else if (new_line)
+		{
+			new_line = false;
+		}
+	}
 
-        // Generate next combination
-        int i = n - 1;
-        while (i >= 0 && indices[i] == numBirds - 1)
-        {
-            i--;
-        }
+	// Need to make sure last line is counted.
+	if (!new_line)
+	{
+		count++;
+	}
 
-        if (i < 0)
-        {
-            done = true;
-        }
-        else
-        {
-            indices[i]++;
-            for (int j = i + 1; j < n; j++)
-            {
-                indices[j] = indices[i];
-            }
-        }
-    }
+	fseek(file, start_pos, SEEK_SET);
+	return count;
 }
 
-// Helper function for combination without replacement
-void generate_combination_without_replacement(char birdNames[][MAX_NAME_LENGTH], int numBirds, int n, int indices[])
+void print_bird_at_index(FILE *file, int target_index)
 {
-    printf("Generating combinations without replacement (n=%d):\n", n);
+	if (!file) return;
 
-    bool done = false;
+	long start_pos = ftell(file);
 
-    // Initialize first combination
-    for (int i = 0; i < n; i++)
-    {
-        indices[i] = i;
-    }
+	fseek(file, 0, SEEK_SET);
 
-    while (!done)
-    {
-        // Print current combination
-        for (int i = 0; i < n; i++)
-        {
-            printf("%s", birdNames[indices[i]]);
-            if (i < n - 1)
-                printf(",");
-        }
-        printf("\n");
+	int current_index = 0;
+	int c;
+	long line_start = 0;
 
-        // Generate next combination
-        int i = n - 1;
-        while (i >= 0 && indices[i] == numBirds - n + i)
-        {
-            i--;
-        }
+	while (current_index < target_index)
+	{
+		c = fgetc(file);
+		if (c == EOF)
+		{
+			fseek(file, start_pos, SEEK_SET);
+			return;
+		}
 
-        if (i < 0)
-        {
-            done = true;
-        }
-        else
-        {
-            indices[i]++;
-            for (int j = i + 1; j < n; j++)
-            {
-                indices[j] = indices[j - 1] + 1;
-            }
-        }
-    }
+		if (c == '\n')
+		{
+			current_index++;
+			line_start = ftell(file);
+		}
+	}
+
+	while ((c = fgetc(file)) != EOF && c != '\n')
+	{
+		putchar(c);
+	}
+
+	fseek(file, start_pos, SEEK_SET);
 }
 
-// Helper function for permutation with replacement
-void generate_permutation_with_replacement(char birdNames[][MAX_NAME_LENGTH], int numBirds, int n, int indices[])
+uint64_t calc_total_iterations(int n, int num_birds, bool is_combination, bool with_replacement)
 {
-    printf("Generating permutations with replacement (n=%d):\n", n);
+	uint64_t total = 1;
 
-    bool done = false;
+	if (is_combination)
+	{
+		if (with_replacement)
+		{
+			// Combinations with replacement: (num_birds+n-1)! / (n! * (num_birds-1)!)
+			for (int i = 0; i < n; i++)
+			{ 
+				total = total * (num_birds + i) / (i + 1);
+			}
+		}
+		else
+		{
+			// Combination without replacement: num_birds! / (n! * (num_birds=n)!)
+			if (n > num_birds)
+			{
+				return 0;
+			}
+			for (int i = 0; i < n; i++)
+			{
+				total = total * (num_birds - i) / (i + 1);
+			}
+		}
+	}
+	else
+	{
+		if (with_replacement)
+		{
+			// Permutations with replacement: num_birds^n
+			for (int i = 0; i < n; i++)
+			{
+				total *= num_birds;
+			}
+		}
+		else
+		{
+			// Permutations without replacement: num_birds! / (num_birds-n)!
+			if (n > num_birds)
+			{
+				return 0;
+			}
+			for (int i = 0; i < n; i++)
+			{
+				total *= (num_birds - i);
+			}
+		}
+	}
 
-    // Initialize first permutation
-    for (int i = 0; i < n; i++)
-    {
-        indices[i] = 0;
-    }
-
-    while (!done)
-    {
-        // Print current permutation
-        for (int i = 0; i < n; i++)
-        {
-            printf("%s", birdNames[indices[i]]);
-            if (i < n - 1)
-                printf(",");
-        }
-        printf("\n");
-
-        // Generate next permutation
-        int i = n - 1;
-        while (i >= 0 && indices[i] == numBirds - 1)
-        {
-            i--;
-        }
-
-        if (i < 0)
-        {
-            done = true;
-        }
-        else
-        {
-            indices[i]++;
-            for (int j = i + 1; j < n; j++)
-            {
-                indices[j] = 0;
-            }
-        }
-    }
+	return total;
 }
 
-// Helper function for permutation without replacement
-void generate_permutation_without_replacement(char birdNames[][MAX_NAME_LENGTH], int numBirds, int n, int indices[], bool used[])
+void calculate_line_positions(FILE *file, int num_birds, long *line_positions)
 {
-    printf("Generating permutations without replacement (n=%d):\n", n);
+	if (!file) return;
 
-    // Initialize first permutation
-    for (int i = 0; i < n; i++)
-    {
-        indices[i] = i;
-        used[i] = true;
-    }
+	long start_pos = ftell(file);
 
-    bool done = false;
+	fseek(file, 0, SEEK_SET);
+	line_positions[0] = 0;
 
-    while (!done)
-    {
-        // Print current permutation
-        for (int i = 0; i < n; i++)
-        {
-            printf("%s", birdNames[indices[i]]);
-            if (i < n - 1)
-                printf(",");
-        }
-        printf("\n");
+	int line_count = 1;
+	int c;
 
-        // Find the rightmost position that can be increased
-        int i = n - 1;
+	while (line_count < num_birds && (c = fgetc(file)) != EOF)
+	{
+		if (c == '\n')
+		{
+			line_positions[line_count] = ftell(file);
+			line_count++;
+		}
+	}
 
-        // Move to the next permutation
-        // First, try to increment the last position
-        bool found = false;
+	fseek(file, start_pos, SEEK_SET);
+}
 
-        // Look for next unused number for the last position
-        int pos = indices[i] + 1;
-        while (pos < numBirds && !found)
-        {
-            if (!used[pos])
-            {
-                found = true;
-                used[indices[i]] = false;
-                indices[i] = pos;
-                used[pos] = true;
-            }
-            pos++;
-        }
+void iteration_to_indice(uint64_t iteration, int n, int num_birds, bool is_combination, bool with_replacement, int *indices)
+{
+	if (is_combination)
+	{
+		if (with_replacement)
+		{
+			int pos = n - 1;
+			int val = 0;
 
-        if (!found)
-        {
-            // Need to backtrack
-            while (i > 0 && !found)
-            {
-                used[indices[i]] = false;
-                i--;
+			for (int i = 0; i < n; i++)
+			{
+				indices[i] = 0;
+			}
 
-                pos = indices[i] + 1;
-                while (pos < numBirds && !found)
-                {
-                    if (!used[pos])
-                    {
-                        found = true;
-                        used[indices[i]] = false;
-                        indices[i] = pos;
-                        used[pos] = true;
-                    }
-                    pos++;
-                }
-            }
+			while (pos >= 0)
+			{
+				uint64_t count = 1;
+				for (int i = 0; i < pos; i++)
+				{
+					count = count * (num_birds + pos - i - 1) / (i + 1);
+				}
 
-            if (!found)
-            {
-                done = true;
-            }
-            else
-            {
-                // Reset positions to the right
-                for (int j = i + 1; j < n; j++)
-                {
-                    for (pos = 0; pos < numBirds; pos++)
-                    {
-                        if (!used[pos])
-                        {
-                            indices[j] = pos;
-                            used[pos] = true;
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-    }
+				while (iteration >= count && val < num_birds)
+				{
+					iteration -= count;
+					val++;
+				}
+
+				indices[n - pos - 1] = val;
+				pos--;
+			}
+		}
+		else
+		{
+			for (int i = 0; i < n; i++)
+			{
+				indices[i] = i;
+			}
+
+			for (int i = 0; i < n; i++)
+			{
+				uint64_t count = 1;
+				for (int j = 1; j <= n - i - 1; j++)
+				{
+					count = count * (num_birds - indices[i] - j) / j;
+				}
+
+				while (iteration >= count && indices[i] < num_birds - n + i)
+				{
+					iteration -= count;
+					indices[i]++;
+					if (i < n - 1)
+					{
+						count = 1;
+						for (int j = 1; j <= n - 1; j++)
+						{
+							count = count * (num_birds - indices[i] -j) / j;
+						}
+					}
+				}
+
+				if (i < n - 1)
+				{
+					indices[i+1] = indices[i] + 1;
+				}
+			}
+		}
+	}
+	else
+	{
+		if (with_replacement)
+		{
+			uint64_t temp = iteration;
+			
+			for (int i = 0; i < n; i++)
+			{
+				indices[i] = temp % num_birds;
+				temp /= num_birds;
+			}
+		}
+		else
+		{
+			bool used[num_birds];
+			for (int i = 0; i < num_birds; i++)
+			{
+				used[i] = false;
+			}
+
+			for (int i = 0; i < n; i++)
+			{
+				uint64_t factorial = 1;
+				for (int j = 1; j <= num_birds - i - 1; j++)
+				{
+					factorial *= j;
+				}
+
+				int idx = iteration / factorial;
+				iteration %= factorial;
+
+				int count =0;
+				for (int j = 0; j < num_birds; j++)
+				{
+					if (!used[j])
+					{
+						if (count == idx)
+						{
+							indices[i] = j;
+							used[j] = true;
+							break;
+						}
+						count++;
+					}
+				}
+			}
+		}
+	}
 }
 
 // Main bird set generation function
-void burds(const char *FILE_PATH, int n, bool isCombination, bool withReplacement)
-{
-
-    // Some thoughts on this one.
-    // Not 100% happy with my solution, there are still some large limitations.
-    // I went with a static buffer and static array for storage, clamping the memory overheard.
-    // If any file exceeds the array size though this program will not run ... which I'm not happy with.
-    // I started looking into implentation of streaming in C to move the overhead away from memory and into IO.
-    // Also starting wondered if I could store an index to each unique line in memory, instead of storing the name itself, which would decrease the overhead by a lot.
-    // I would like to submit something though, and fear I don't have the time to properly explore the above before Wednesday :(
-
-    // Open input file
-    FILE *file = fopen(FILE_PATH, "r");
-    if (!file)
-    {
-        printf("No burds in here mate ....[ERROR OPENING FILE]\n");
-        return;
-    }
-
-    // Static arrays for our storage.
-    // MAX overhead of 100 * 50 = 5000 bytes of storage.
-    char birdNames[MAX_BIRDS][MAX_NAME_LENGTH];
-    // MAX overhead of 50 bytes.
-    char buffer[MAX_NAME_LENGTH];
-    int numBirds = 0;
-
-    // While we haven't reached EOF, and we still have birds left.
-    while (fgets(buffer, MAX_NAME_LENGTH, file) != NULL && numBirds < MAX_BIRDS)
-    {
-        // Remove newline character
-        buffer[strcspn(buffer, "\n")] = 0;
-
-        // Copy to static array
-        strncpy(birdNames[numBirds], buffer, MAX_NAME_LENGTH - 1);
-        birdNames[numBirds][MAX_NAME_LENGTH - 1] = '\0';
-
-        numBirds++;
-    }
-
-    fclose(file);
-
-    // Arrays for tracking current indices and used elements
-    int indices[MAX_N];
-    bool used[MAX_BIRDS];
-
-    // Initialize tracking arrays
-    for (int i = 0; i < MAX_N; i++)
-    {
-        indices[i] = 0;
-    }
-
-    for (int i = 0; i < MAX_BIRDS; i++)
-    {
-        used[i] = false;
-    }
-
-    // Execute appropriate algorithm based on parameters
-    printf("<:)}}}><  Bird Set Generator  ><{{{(:>\n\n");
-
-    switch ((isCombination ? 2 : 0) + (withReplacement ? 1 : 0))
-    {
-    case 0: // isCombination: 0, withReplacement: 0
-        generate_permutation_without_replacement(birdNames, numBirds, n, indices, used);
-        break;
-    case 1: // isCombination: 0, withReplacement: 1
-        generate_permutation_with_replacement(birdNames, numBirds, n, indices);
-        break;
-    case 2: // isCombination: 1, withReplacement: 0
-        generate_combination_without_replacement(birdNames, numBirds, n, indices);
-        break;
-    case 3: // isCombination: 1, withReplacement: 1
-        generate_combination_with_replacement(birdNames, numBirds, n, indices);
-        break;
-    default:
-        printf("Case broke, no burds here.\n");
-        break;
-    }
-
-    printf("\nDone! <:)}}}><\n");
+void burds(const char *file_path, int n, bool is_combination, bool with_replacement) {
+	printf("<:)}}}><  Bird Set Generator  ><{{{(:>\n\n");
+    
+    	FILE *file = fopen(file_path, "r");
+    	if (!file) 
+	{
+        	printf("No burds in here mate ....[ERROR OPENING FILE]\n");
+        	return;
+    	}
+    
+    	int num_birds = count_birds(file);
+    	
+	if (num_birds <= 0) {
+        	printf("No burds here mate ...\n");
+        	fclose(file);
+        	return;
+    	}
+    
+    	// TOTAL ITERATIONS COUNT
+	uint64_t total_iterations = calc_total_iterations(n, num_birds, is_combination, with_replacement);
+    	if (total_iterations == 0) {
+        	printf("Cannot generate sets....\n");
+        	fclose(file);
+        	return;
+    	}
+    
+    	const char *type = is_combination ? "combinations" : "permutations";
+    	const char *replacement = with_replacement ? "with" : "without";
+    	printf("Generating %s %s replacement (n=%d):\n", type, replacement, n);
+    
+    	// Stack-allocated indices array with a reasonable maximum
+	// While I've eliminated arrays for bird storage, I still need a minimal array 
+	// to track the current set of indices. This small, fixed-size array:
+	// 1. Uses only O(n) memory regardless of the number of birds
+	// 2. Is allocated on the stack for efficiency
+	// 3. Has a practical upper limit that balances usability with constraints
+	int indices[10]; 
+    
+    	if (n > 10) 
+	{
+        	printf("Set size n is too large (maximum: 10)\n");
+        	fclose(file);
+        	return;
+    	}
+    
+    	// For efficiency, I pre-calculate line positions using fseek
+    	// Middle ground approach - using a small fixed array but taking
+    	// advantage of fseek to avoid repeated scanning of the file
+    	long line_positions[num_birds];
+    	calculate_line_positions(file, num_birds, line_positions);
+    
+    	// Generate and print each set
+    	for (uint64_t iter = 0; iter < total_iterations; iter++) 
+	{
+        	iteration_to_indice(iter, n, num_birds, is_combination, with_replacement, indices);
+        
+        	for (int i = 0; i < n; i++) 
+		{
+            		fseek(file, line_positions[indices[i]], SEEK_SET);
+            		int c;
+            		
+			while ((c = fgetc(file)) != EOF && c != '\n') 
+			{
+                		putchar(c);
+        		}
+            
+            		if (i < n - 1) 
+			{
+                		printf(",");
+            		}
+        	}
+	
+	printf("\n");
+    	}
+    
+    	fclose(file);
+    	printf("\nDone! <:)}}}><\n");
 }
 
-// Main, with arg parsing and simple docu for how to use compiled file.
 int main(int argc, char *argv[])
 {
-    if (argc < 3)
-    {
-        printf("Usage: %s <input_file> <n> [--combination|--permutation] [--with|--without]\n", argv[0]);
-        return 1;
-    }
+	if (argc < 3)
+	{
+		printf("Usage: %s <input_file> <n> [--combination|--permutation] [--with|--without]\n", argv[0]);
+        	return 1;
+	}
 
-    const char *INPUT_FILE = argv[1];
-    int n = atoi(argv[2]);
-    bool isCombination = true;
-    bool withReplacement = false;
+	const char *input_file = argv[1];
+	int n = atoi(argv[2]);
 
-    // Parse optional flags
-    for (int i = 3; i < argc; i++)
-    {
-        if (strcmp(argv[i], "--combination") == 0)
-        {
-            isCombination = true;
-        }
-        else if (strcmp(argv[i], "--permutation") == 0)
-        {
-            isCombination = false;
-        }
-        else if (strcmp(argv[i], "--with") == 0)
-        {
-            withReplacement = true;
-        }
-        else if (strcmp(argv[i], "--without") == 0)
-        {
-            withReplacement = false;
-        }
-    }
+	// Defaults
+	bool is_combination = true;
+	bool with_replacement = false;
 
-    burds(INPUT_FILE, n, isCombination, withReplacement);
+	for (int i = 3; i < argc; i++)
+	{
+		if (strcmp(argv[i], "--combination") == 0)
+		{
+			is_combination = true;
+		}
+		else if (strcmp(argv[i], "--permutation") == 0)
+		{
+			is_combination = false;
+		}
+		else if (strcmp(argv[i], "--with") == 0)
+		{
+			with_replacement = true;
+		}
+		else if (strcmp(argv[i], "--without") == 0)
+		{
+			with_replacement = false;
+		}
+	}
 
-    return 0;
+	burds(input_file, n, is_combination, with_replacement);
+
+	return 0;
 }
+
+
+
